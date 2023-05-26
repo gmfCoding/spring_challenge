@@ -1,65 +1,47 @@
-#define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdarg.h>
 
-char	*strdup(const char *s1)
-{
-	int		len;
-	char	*s2;
-
-	len = strlen(s1);
-	s2 = calloc(len + 1, sizeof(char));
-	if (!s2)
-		return (NULL);
-	strncpy(s2, s1, len + 1);
-	return (s2);
-}
-
-
+// UTILITY FUNCTIONS
 char *strjoin(const char* s1, const char* s2)
 {
     char* result = malloc(strlen(s1) + strlen(s2) + 1);
-
-    if (result) // thanks @pmg
+    if (result)
     {
         strcpy(result, s1);
         strcat(result, s2);
     }
-
     return result;
 }
 
-typedef struct cellinfo cellinfo;
+char *strjoinmany(int amount, ...)
+{
+	char *str;
+	char *full = strdup("");
+	char *tmp;
+	va_list va;
+
+	va_start(va, amount);
+	while (amount > 0)
+	{
+		str = va_arg(va, char*);
+		tmp = full;
+		full = strjoin(full, str);
+		free(tmp);
+		free(str);
+		amount--;
+	}
+    return full;
+}
+
+// ACTION INFORMATION AND PROCESSING
 typedef struct action action;
 
-cellinfo *g_cell;
-action *g_actions = NULL;
-
-/**
- * Auto-generated code below aims at helping you parse
- * the standard input according to the problem statement.
- **/
-typedef struct cellinfo
-{
-    int idx;
-
-    int resources;
-    int eggs;
-    int my_ants;
-    int op_ants;
-    int type;                   //0 for blank, 1 for Eggs, 2 for Crystals
-    int initial_resources;      
-    int nmr_0;                  //right
-    int ntr_1;                  //top right
-    int ntl_2;                  //top left
-    int nml_3;                  //left
-    int nbl_4;                  //bot left
-    int nbr_5;                  //bot right
-    struct cellinfo *next;
-} cellinfo;
-
+// using extern allows us to forward declare g_actions, 
+// otherwise it cannot be found, because it is really defined down near g_cells.
+extern action *g_actions;
 
 typedef struct action
 {
@@ -95,25 +77,76 @@ void action_beacon(int dst, int strn)
     create_action()->action = strdup(buffer);
 }
 
+void action_message(const char *message)
+{    
+    char buffer[200];
+    sprintf(buffer, "MESSAGE %s", message);
+    create_action()->action = strdup(buffer);
+}
+
 void do_actions()
 {
-    action *curr = g_actions;
-    char *actions;
-    action *tmp;
+    char *actions = g_actions->action;
+    action *curr = g_actions->next;
+	action *tmp;
+    int amount = 0;
 
     while (curr)
     {
-        actions = strjoin(curr->action, ";");
-
+        amount++;
+		actions = strjoinmany(3, actions, strdup(";"), curr->action);
         tmp = curr;
         curr = curr->next;
-        
-        free(tmp->action);
         free(tmp);
+    }
+    g_actions = NULL;
+    if (amount == 0)
+    {
+        printf("WAIT\n");
+        return;
     }
     printf("%s\n", actions);
     free(actions);
 }
+
+void assert(const char *err, bool condition)
+{
+    if (condition)
+		error(err);
+}
+
+void error(const char *err)
+{
+    fprintf(stderr, "%s\n", err);
+}
+// CELL INFORMATION AND PROCESSING
+typedef struct cellinfo cellinfo;
+
+cellinfo *g_cell;
+action *g_actions = NULL;
+
+/**
+ * Auto-generated code below aims at helping you parse
+ * the standard input according to the problem statement.
+ **/
+typedef struct cellinfo
+{
+    int idx;
+
+    int resources;
+    int eggs;
+    int my_ants;
+    int op_ants;
+    int type;                   //0 for blank, 1 for Eggs, 2 for Crystals
+    int initial_resources;      
+    int nmr_0;                  //right
+    int ntr_1;                  //top right
+    int ntl_2;                  //top left
+    int nml_3;                  //left
+    int nbl_4;                  //bot left
+    int nbr_5;                  //bot right
+    struct cellinfo *next;
+} cellinfo;
 
 cellinfo *get_cell(int cell)
 {
@@ -129,28 +162,29 @@ cellinfo *get_cell(int cell)
     return (NULL);
 }
 
-cellinfo *get_cell_relative(int cell, int dir)
+cellinfo *get_cell_relative(cellinfo *cell, int dir)
 {
+    if (cell == NULL)
+        return NULL;
     switch(dir)
     {
         case 0:
-            return get_cell(get_cell(cell)->nmr_0);
+            return get_cell(cell->nmr_0);
         case 1:
-            return get_cell(get_cell(cell)->ntr_1);
+            return get_cell(cell->ntr_1);
         case 2:
-            return get_cell(get_cell(cell)->ntl_2);
+            return get_cell(cell->ntl_2);
         case 3:
-            return get_cell(get_cell(cell)->nml_3);
+            return get_cell(cell->nml_3);
         case 4:
-            return get_cell(get_cell(cell)->nbl_4);
+            return get_cell(cell->nbl_4);
         case 5:
-            return get_cell(get_cell(cell)->nbr_5);
+            return get_cell(cell->nbr_5);
         default:
             return (NULL);
     }
     return (NULL);
 }
-
 
 int main()
 {
@@ -169,6 +203,12 @@ int main()
         curr = curr->next;
     }
 
+	// TODO: create a struct that contains the stats of the map such as
+	// number of bases and their indices, this could be just a cellinfo *bases_head;
+	// where each node is just the node to the next owned base
+	// we could also have multiple seperate linked lists for:
+	// collectables, eggs, enemy_bases
+
     int number_of_bases;
     int my_base_index;
 
@@ -183,13 +223,14 @@ int main()
         scanf("%d", &opp_base_index);
     }
     bool isCollecting = 0;
+
     // game loop
     while (1) 
     {
         int idx = 0;
         int max = 0;
         int ants = 0;
-        //geminfo *gem = gems;
+
         for (int i = 0; i < number_of_cells; i++) 
         {
             cellinfo *curr;
@@ -215,16 +256,26 @@ int main()
             }
         }
 
-        action_line(my_base_index, idx, 100);
-        action_line(my_base_index, get_cell_relative(get_cell(my_base_index)->idx, 0)->idx, 100);
-        do_actions();
+		// WILL CRASH IF THE CELLS RETURNED ARE NULL, TAILOR THE DIRECTION TO THE MAP.
+		// EXAMPLE USAGE: Get the cell, n1 which is to the left (3) of the base.
+		// Then get the cell to the left (3) of n1, called n2.
+        cellinfo *n1 = get_cell_relative(get_cell(my_base_index), 3);
+        cellinfo *n2 = get_cell_relative(n1, 3);
+		assert("NULL CELL CRASH IMMINMENT", !n1 || !n2);
 
-        // Write an action using printf(). DON'T FORGET THE TRAILING \n
-        // To debug: fprintf(stderr, "Debug messages...\n");
-        // WAIT | LINE <sourceIdx> <targetIdx> <strength> | BEACON <cellIdx> <strength> | MESSAGE <text>
+		// Places beacons at base, n1, n2
+		action_message("WOAH!!");
+        action_beacon(my_base_index, 100);
+        action_beacon(n1->idx, 100);
+        action_beacon(n2->idx, 100);
 
-        //printf("WAIT\n");
+        // Create an action using action_<name>(arguments...)
+        // To debug: use error and assert
+		// action_line(int sourceIdx, int targetIdx, int strength) 
+		// action_beacon(int cellIdx, int strength)
+		// action_message(char *msg);
+        // Or do nothing
+		do_actions(); // ALWAYS NEEDED, if no actions are queued default action is 'WAIT'
     }
-
     return 0;
 }
