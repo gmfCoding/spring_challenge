@@ -4,6 +4,18 @@
 #include <string.h>
 #include <stdbool.h>
 
+char	*strdup(const char *s1)
+{
+	int		len;
+	char	*s2;
+
+	len = strlen(s1);
+	s2 = calloc(len + 1, sizeof(char));
+	if (!s2)
+		return (NULL);
+	strncpy(s2, s1, len + 1);
+	return (s2);
+}
 
 
 char *strjoin(const char* s1, const char* s2)
@@ -32,6 +44,7 @@ action *g_actions = NULL;
 typedef struct cellinfo
 {
     int idx;
+
     int resources;
     int eggs;
     int my_ants;
@@ -70,12 +83,16 @@ action *create_action()
 
 void action_line(int src, int dst, int strn)
 {
-    asprintf(&create_action()->action, "LINE %d %d %d", src, dst, strn);
+    char buffer[200];
+    sprintf(buffer, "LINE %d %d %d", src, dst, strn);
+    create_action()->action = strdup(buffer);
 }
 
 void action_beacon(int dst, int strn)
-{
-    asprintf(&create_action()->action, "BEACON %d %d", dst, strn);
+{    
+    char buffer[200];
+    sprintf(buffer, "BEACON %d %d", dst, strn);
+    create_action()->action = strdup(buffer);
 }
 
 void do_actions()
